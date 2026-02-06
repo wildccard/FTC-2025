@@ -27,9 +27,14 @@ import org.firstinspires.ftc.teamcode.subsystems.Sorter;
  *   - B: Stop shooter
  *   - X: Manual turret left
  *   - Y: Manual turret right
- *   - D-pad Up: Increase hood angle
- *   - D-pad Down: Decrease hood angle
+ *   - D-pad Up: Increase hood angle (when not launching)
+ *   - D-pad Down: Decrease hood angle (when not launching)
+ *   - D-pad Left: Start sequential ball launch (based on AprilTag)
+ *   - D-pad Right: Stop sequential ball launch
  *   - Right Trigger: Set shooter speed
+ * 
+ * Init Phase:
+ *   - D-pad Left/Right on Gamepad2: Change AprilTag ID for sequence (1-10)
  */
 @TeleOp(name="TeleOpMain", group="Competition")
 public class TeleOpMain extends OpMode {
@@ -48,6 +53,11 @@ public class TeleOpMain extends OpMode {
     private boolean autoAimEnabled = false;
     private boolean lastAButton = false;
     private boolean lastBButton = false;
+    
+    // Launch sequence state
+    private boolean lastDpadLeftButton = false;
+    private boolean lastDpadRightButton = false;
+    private int aprilTagIdForSequence = 1;  // Default AprilTag ID
     
     // Hood angle control
     private double hoodAngle = 0.5;
@@ -86,6 +96,24 @@ public class TeleOpMain extends OpMode {
     public void init_loop() {
         telemetry.addData("Status", "Ready to start");
         telemetry.addData("Alliance", "Configure target color in code");
+        
+        // Simulate AprilTag reading during init
+        // In real implementation, this would read from Limelight/camera
+        // TODO: Integrate actual AprilTag detection
+        telemetry.addData("", "--- APRILTAG SETUP ---");
+        telemetry.addData("AprilTag ID", aprilTagIdForSequence);
+        telemetry.addData("Info", "Use D-pad Left/Right on Gamepad2 to change");
+        
+        // Allow changing AprilTag ID during init
+        if (gamepad2.dpad_left && !lastDpadLeftButton) {
+            aprilTagIdForSequence = Math.max(1, aprilTagIdForSequence - 1);
+        }
+        if (gamepad2.dpad_right && !lastDpadRightButton) {
+            aprilTagIdForSequence = Math.min(10, aprilTagIdForSequence + 1);
+        }
+        lastDpadLeftButton = gamepad2.dpad_left;
+        lastDpadRightButton = gamepad2.dpad_right;
+        
         telemetry.update();
     }
     
@@ -96,6 +124,13 @@ public class TeleOpMain extends OpMode {
     public void start() {
         runtime.reset();
         swerveDrive.resetHeading();
+        
+        // Set launch sequence from AprilTag
+        sorter.setLaunchSequenceFromAprilTag(aprilTagIdForSequence);
+        
+        telemetry.addData("Status", "Started");
+        telemetry.addData("Launch Sequence", "Set from AprilTag " + aprilTagIdForSequence);
+        telemetry.update();
     }
     
     /**
@@ -188,10 +223,34 @@ public class TeleOpMain extends OpMode {
             turret.setHoodAngle(hoodAngle);
         }
         
+        // ========== SEQUENTIAL LAUNCH CONTROLS ==========
+        
+        // D-pad Left on Gamepad2: Start sequential launch
+        if (gamepad2.dpad_left && !lastDpadLeftButton) {
+            if (!sorter.isLaunching()) {
+                sorter.startSequentialLaunch();
+            }
+        }
+        lastDpadLeftButton = gamepad2.dpad_left;
+        
+        // D-pad Right on Gamepad2: Stop sequential launch
+        if (gamepad2.dpad_right && !lastDpadRightButton) {
+            if (sorter.isLaunching()) {
+                sorter.stopSequentialLaunch();
+            }
+        }
+        lastDpadRightButton = gamepad2.dpad_right;
+        
         // ========== SUBSYSTEM UPDATES ==========
         
         // Update sorting logic (color detection and lopata actuation)
-        sorter.updateSorting();
+        if (!sorter.isLaunching()) {
+            // Only do normal sorting when not in launch mode
+            sorter.updateSorting();
+        } else {
+            // Update sequential launch logic
+            sorter.updateSequentialLaunch();
+        }
         
         // Update turret with odometry data
         // TODO: Integrate actual odometry readings
@@ -237,6 +296,13 @@ public class TeleOpMain extends OpMode {
         telemetry.addData("Sensor 2", colors[1].toString());
         telemetry.addData("Sensor 3", colors[2].toString());
         
+        // Launch sequence telemetry
+        telemetry.addData("", "--- LAUNCH SEQUENCE ---");
+        telemetry.addData("Status", sorter.getLaunchStatus());
+        telemetry.addData("Sequence", sorter.getLaunchSequence().toString());
+        telemetry.addData("Sorted Balls", sorter.getSortedBallCount());
+        telemetry.addData("Controls", "D-pad Left=Start, D-pad Right=Stop");
+        
         telemetry.update();
     }
     
@@ -248,6 +314,7 @@ public class TeleOpMain extends OpMode {
         swerveDrive.stop();
         turret.stopShooter();
         sorter.stopIntake();
+        sorter.stopSequentialLaunch();
         sorter.resetLopataServos();
     }
 }

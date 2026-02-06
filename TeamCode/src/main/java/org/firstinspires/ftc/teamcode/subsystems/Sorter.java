@@ -5,9 +5,13 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.RobotHardware;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Sorter subsystem for intake and color-based ball sorting
  * Uses color sensors to detect ball color and lopata servos to sort
+ * Can launch balls sequentially based on AprilTag decode instructions
  */
 public class Sorter {
     
@@ -37,6 +41,10 @@ public class Sorter {
     private static final double LOPATA_NEUTRAL = 0.5;
     private static final double LOPATA_SORT_LEFT = 0.2;
     private static final double LOPATA_SORT_RIGHT = 0.8;
+    private static final double LOPATA_LAUNCH_UP = 1.0;  // Position to launch ball upward
+    
+    // Launch timing
+    private static final long LAUNCH_DURATION_MS = 500;  // Time to hold launch position
     
     // Ball color enumeration
     public enum BallColor {
@@ -52,6 +60,14 @@ public class Sorter {
     // Intake state
     private boolean intakeRunning = false;
     private boolean autoSortEnabled = true;
+    
+    // Sequential launching state
+    private List<BallColor> launchSequence = new ArrayList<>();  // AprilTag decoded sequence
+    private List<BallColor> sortedBalls = new ArrayList<>();     // Balls sorted and ready to launch
+    private int launchIndex = 0;                                  // Current position in launch sequence
+    private boolean isLaunching = false;                          // Whether we're in launch mode
+    private long launchStartTime = 0;                             // Time when current launch started
+    private int currentLaunchServo = -1;                          // Which servo is currently launching (-1 = none)
     
     /**
      * Constructor for Sorter subsystem
@@ -257,5 +273,226 @@ public class Sorter {
             detectBallColor(colorSensor2),
             detectBallColor(colorSensor3)
         };
+    }
+    
+    // ========== SEQUENTIAL LAUNCHING METHODS ==========
+    
+    /**
+     * Set the launch sequence from AprilTag decode
+     * This should be called at initialization with the decoded sequence
+     * @param sequence List of ball colors in the order they should be launched
+     */
+    public void setLaunchSequence(List<BallColor> sequence) {
+        this.launchSequence = new ArrayList<>(sequence);
+        this.launchIndex = 0;
+        telemetryMessage("Launch sequence set: " + sequence.size() + " balls");
+    }
+    
+    /**
+     * Set launch sequence from AprilTag ID
+     * Decodes the AprilTag ID into a ball color sequence
+     * @param aprilTagId The AprilTag ID detected (0-15 typical range)
+     */
+    public void setLaunchSequenceFromAprilTag(int aprilTagId) {
+        launchSequence.clear();
+        
+        // Decode AprilTag ID into sequence
+        // Example decoding logic (customize based on FTC game rules):
+        // Each bit represents a ball: 0=RED, 1=BLUE
+        // Or use lookup table for specific tag IDs
+        
+        switch (aprilTagId) {
+            case 1:
+                // Example: RED, RED, BLUE
+                launchSequence.add(BallColor.RED);
+                launchSequence.add(BallColor.RED);
+                launchSequence.add(BallColor.BLUE);
+                break;
+            case 2:
+                // Example: BLUE, RED, BLUE
+                launchSequence.add(BallColor.BLUE);
+                launchSequence.add(BallColor.RED);
+                launchSequence.add(BallColor.BLUE);
+                break;
+            case 3:
+                // Example: RED, BLUE, RED
+                launchSequence.add(BallColor.RED);
+                launchSequence.add(BallColor.BLUE);
+                launchSequence.add(BallColor.RED);
+                break;
+            default:
+                // Default sequence: alternating RED, BLUE, RED
+                launchSequence.add(BallColor.RED);
+                launchSequence.add(BallColor.BLUE);
+                launchSequence.add(BallColor.RED);
+                break;
+        }
+        
+        this.launchIndex = 0;
+        telemetryMessage("Launch sequence from AprilTag " + aprilTagId + ": " + launchSequence.size() + " balls");
+    }
+    
+    /**
+     * Track a sorted ball (called when a ball is successfully sorted)
+     * @param color Color of the sorted ball
+     */
+    public void trackSortedBall(BallColor color) {
+        if (color != BallColor.NONE && color != BallColor.UNKNOWN) {
+            sortedBalls.add(color);
+            telemetryMessage("Ball sorted: " + color + " (Total: " + sortedBalls.size() + ")");
+        }
+    }
+    
+    /**
+     * Start sequential launching of balls based on the AprilTag sequence
+     * Balls will be launched in the order specified by the launch sequence
+     */
+    public void startSequentialLaunch() {
+        if (launchSequence.isEmpty()) {
+            telemetryMessage("Error: No launch sequence set!");
+            return;
+        }
+        
+        isLaunching = true;
+        launchIndex = 0;
+        telemetryMessage("Starting sequential launch...");
+    }
+    
+    /**
+     * Stop sequential launching
+     */
+    public void stopSequentialLaunch() {
+        isLaunching = false;
+        currentLaunchServo = -1;
+        resetLopataServos();
+        telemetryMessage("Sequential launch stopped");
+    }
+    
+    /**
+     * Update sequential launch logic
+     * This should be called periodically in the main loop when launching
+     */
+    public void updateSequentialLaunch() {
+        if (!isLaunching) {
+            return;
+        }
+        
+        // Check if we're currently launching a ball
+        if (currentLaunchServo != -1) {
+            // Check if launch duration has elapsed
+            if (System.currentTimeMillis() - launchStartTime >= LAUNCH_DURATION_MS) {
+                // Return servo to neutral
+                setLopataPosition(currentLaunchServo, LOPATA_NEUTRAL);
+                currentLaunchServo = -1;
+                launchIndex++;
+                
+                // Small delay before next launch
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            return;
+        }
+        
+        // Check if we've completed the sequence
+        if (launchIndex >= launchSequence.size()) {
+            telemetryMessage("Launch sequence complete!");
+            stopSequentialLaunch();
+            return;
+        }
+        
+        // Launch next ball in sequence
+        BallColor nextColor = launchSequence.get(launchIndex);
+        int servoToLaunch = findBallToLaunch(nextColor);
+        
+        if (servoToLaunch != -1) {
+            launchBall(servoToLaunch);
+            telemetryMessage("Launching ball " + (launchIndex + 1) + "/" + launchSequence.size() + ": " + nextColor);
+        } else {
+            telemetryMessage("Warning: No " + nextColor + " ball available to launch!");
+            launchIndex++;  // Skip to next in sequence
+        }
+    }
+    
+    /**
+     * Find which servo has the next ball to launch
+     * @param color Color of ball to find
+     * @return Servo index (1-3) or -1 if not found
+     */
+    private int findBallToLaunch(BallColor color) {
+        // Check each color sensor for the requested color
+        BallColor[] detectedColors = getDetectedColors();
+        
+        for (int i = 0; i < detectedColors.length; i++) {
+            if (detectedColors[i] == color) {
+                return i + 1;  // Return servo index (1-based)
+            }
+        }
+        
+        // If not currently detected, check sorted balls list
+        // Assume balls are distributed across servos
+        if (!sortedBalls.isEmpty() && sortedBalls.contains(color)) {
+            // Return first available servo (in practice, track ball positions)
+            return 1;
+        }
+        
+        return -1;  // No ball of this color found
+    }
+    
+    /**
+     * Launch a ball from a specific servo
+     * @param servoIndex Servo index (1-3)
+     */
+    private void launchBall(int servoIndex) {
+        currentLaunchServo = servoIndex;
+        launchStartTime = System.currentTimeMillis();
+        setLopataPosition(servoIndex, LOPATA_LAUNCH_UP);
+    }
+    
+    /**
+     * Get launch sequence status
+     * @return String describing current launch status
+     */
+    public String getLaunchStatus() {
+        if (!isLaunching) {
+            return "Ready (" + launchSequence.size() + " balls queued)";
+        }
+        return "Launching " + (launchIndex + 1) + "/" + launchSequence.size();
+    }
+    
+    /**
+     * Check if currently in launch mode
+     * @return True if launching
+     */
+    public boolean isLaunching() {
+        return isLaunching;
+    }
+    
+    /**
+     * Get the launch sequence
+     * @return List of ball colors in launch order
+     */
+    public List<BallColor> getLaunchSequence() {
+        return new ArrayList<>(launchSequence);
+    }
+    
+    /**
+     * Get number of sorted balls
+     * @return Count of sorted balls
+     */
+    public int getSortedBallCount() {
+        return sortedBalls.size();
+    }
+    
+    /**
+     * Helper method for telemetry messages (to be overridden or logged)
+     * @param message Message to log
+     */
+    private void telemetryMessage(String message) {
+        // This would be connected to the OpMode telemetry in practice
+        // For now, just print to system
+        System.out.println("[Sorter] " + message);
     }
 }
