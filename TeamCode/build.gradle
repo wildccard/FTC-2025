@@ -1,0 +1,34 @@
+// TeamCode build configuration
+apply plugin: 'com.android.library'
+
+android {
+    namespace = 'com.example.teamcode'
+    
+    compileSdkVersion 29
+    
+    defaultConfig {
+        minSdkVersion 24
+        targetSdkVersion 28
+        
+        // FTC SDK version
+        buildConfigField "String", "APP_BUILD_TIME", '"' + (new Date()).toString() + '"'
+    }
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    // FTC SDK dependencies would be included here
+    // These are typically provided by the parent FTC SDK project
+    
+    // Example dependencies (actual versions depend on FTC SDK)
+    // implementation 'org.firstinspires.ftc:RobotCore:9.0.1'
+    // implementation 'org.firstinspires.ftc:Hardware:9.0.1'
+    // implementation 'org.firstinspires.ftc:FtcCommon:9.0.1'
+    
+    // Note: In a real FTC project, this module would be part of the
+    // FTC SDK project structure and inherit dependencies from there
+}
