@@ -212,7 +212,7 @@ public class TeleOpMain extends OpMode {
             hoodInput = applyDeadzone(hoodInput, 0.05);
             
             if (Math.abs(hoodInput) > 0.01) {
-                double currentHood = turret.targetHoodAngle;
+                double currentHood = turret.getHoodAngle();
                 double newHood = currentHood + hoodInput * 0.01; // Increment by 0.01
                 turret.setHoodAngle(newHood);
             }

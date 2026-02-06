@@ -184,6 +184,14 @@ public class Turret {
     }
     
     /**
+     * Get current target hood angle
+     * @return Hood servo target position (0.0 to 1.0)
+     */
+    public double getHoodAngle() {
+        return this.targetHoodAngle;
+    }
+    
+    /**
      * Enable auto-aim mode with Limelight targeting
      * @param hasTarget Whether Limelight has a valid target
      * @param targetBearing Target bearing from Limelight (degrees)
