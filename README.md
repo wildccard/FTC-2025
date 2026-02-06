@@ -9,6 +9,7 @@ This repository contains a complete FTC TeleOp program with modular subsystem ar
 - **Swerve Drivetrain** with field-centric control and absolute encoders
 - **Turret & Shooter System** with auto-aim using Limelight/AprilTags
 - **Intake & Sorting System** with color sensor detection
+- **Sequential Ball Launching** based on AprilTag decode instructions (NEW!)
 
 ## Quick Start
 
@@ -48,6 +49,9 @@ TeamCode/
 - Real-time color detection with multiple sensors
 - Automatic ball sorting with "lopata" (shovel) servos
 - Alliance-based target color configuration
+- **Sequential ball launching**: Launch balls upward in specific order
+- **AprilTag integration**: Decode AprilTag at start to determine launch sequence
+- **Precise timing**: Controlled servo movements for reliable ball launching
 
 ## Getting Started
 

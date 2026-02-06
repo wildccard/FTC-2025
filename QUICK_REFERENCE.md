@@ -69,9 +69,39 @@ odometryY           - DcMotorEx (odometry pod)
 | B Button | Stop shooter |
 | X Button | Manual turret left |
 | Y Button | Manual turret right |
-| D-pad Up | Increase hood angle |
-| D-pad Down | Decrease hood angle |
+| D-pad Up | Increase hood angle (when not launching) |
+| D-pad Down | Decrease hood angle (when not launching) |
+| D-pad Left | **Start sequential ball launch** |
+| D-pad Right | **Stop sequential ball launch** |
 | Right Trigger | Manual shooter speed |
+
+### Init Phase Controls
+| Control | Function |
+|---------|----------|
+| D-pad Left (Gamepad2) | Decrease AprilTag ID (1-10) |
+| D-pad Right (Gamepad2) | Increase AprilTag ID (1-10) |
+
+## Sequential Ball Launching (NEW!)
+
+### Overview
+The robot can launch balls upward in a specific sequence determined by AprilTag detection at the start of the match.
+
+### How It Works
+1. **During Init**: Use D-pad Left/Right on Gamepad2 to select AprilTag ID (1-10)
+2. **On Start**: The system decodes the AprilTag ID into a ball color sequence
+3. **During Sorting**: Balls are collected and sorted normally by color sensors
+4. **Launch Sequence**: Press D-pad Left on Gamepad2 to launch balls in the specified order
+5. **Lopata Action**: Each servo moves to "launch up" position (1.0) to propel ball upward
+6. **Stop Launch**: Press D-pad Right to abort the sequence at any time
+
+### AprilTag Decoding
+The AprilTag ID is decoded into a sequence of ball colors:
+- **Tag 1**: RED, RED, BLUE
+- **Tag 2**: BLUE, RED, BLUE
+- **Tag 3**: RED, BLUE, RED
+- **Default**: RED, BLUE, RED (for other tag IDs)
+
+*Customize the decoding logic in `Sorter.setLaunchSequenceFromAprilTag()` method based on game rules.*
 
 ## Calibration Checklist
 
@@ -115,6 +145,8 @@ odometryY           - DcMotorEx (odometry pod)
 - Detects red/blue balls
 - Automatically sorts based on alliance color
 - Can disable auto-sort if needed
+- **NEW: Sequential ball launching based on AprilTag sequence**
+- Launch balls upward in specific order with D-pad Left
 
 ## Troubleshooting
 
@@ -133,11 +165,19 @@ odometryY           - DcMotorEx (odometry pod)
 - Calibrate thresholds in Sorter.java
 - Check sensor wiring and I2C addresses
 
+### Sequential launch not working
+- Verify AprilTag ID was set during init phase
+- Check lopata servo calibration (LOPATA_LAUNCH_UP position)
+- Ensure balls are properly sorted before launching
+- Verify color sensors detect balls correctly
+- Check LAUNCH_DURATION_MS timing
+
 ## Next Steps
 
 1. Review [TeamCode/README.md](README.md) for detailed documentation
 2. Configure hardware in Robot Controller app
 3. Test each subsystem individually
 4. Calibrate sensors and PID values
-5. Integrate IMU, Limelight, and odometry
-6. Run full system test
+5. **Customize AprilTag decoding for your game**
+6. Integrate IMU, Limelight, and odometry
+7. Run full system test

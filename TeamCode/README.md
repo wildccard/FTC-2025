@@ -87,6 +87,11 @@ TeamCode/
 - **Color sensor detection** of ball color (red/blue)
 - **Automatic sorting** with lopata (shovel) servos
 - **Configurable target color** based on alliance
+- **Sequential ball launching** (NEW!):
+  - Launch balls upward in order specified by AprilTag
+  - AprilTag ID decoded at match start
+  - Precise timing control for each launch
+  - D-pad controls for starting/stopping sequence
 
 ## TODO: Calibration and Tuning
 
